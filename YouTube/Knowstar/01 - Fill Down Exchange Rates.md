@@ -125,8 +125,13 @@ FROM CurrencyRate
 
     ```sql
     SELECT 
-        *, 
-        FIRST_VALUE(EndOfDayRate) OVER(PARTITION BY Cluster ORDER BY DateKey) 
+        T.CurrencyKey, 
+        T.DateKey, 
+        EndOfDayRate = FIRST_VALUE(EndOfDayRate) OVER(
+            PARTITION BY Cluster 
+            ORDER BY DateKey
+        ),
+        T.Date
     FROM (
         SELECT 
             *, 
@@ -142,18 +147,25 @@ FROM CurrencyRate
 3. **Solution 3**
     ```sql
     ;WITH A AS (
-        SELECT *, Rn = ROW_NUMBER() OVER(ORDER BY (SELECT NULL)) 
+        SELECT 
+            *, 
+            Rn = ROW_NUMBER() OVER(ORDER BY (SELECT NULL)) 
         FROM CurrencyRate
     ),
     B AS (
-        SELECT *, Cluster = COUNT(EndOfDayRate) OVER(ORDER BY Rn) 
+        SELECT 
+            *, 
+            Cluster = COUNT(EndOfDayRate) OVER(ORDER BY Rn) 
         FROM A
     ),
     C AS (
         SELECT 
             CurrencyKey, 
             DateKey, 
-            EndOfDayRate = FIRST_VALUE(EndOfDayRate) OVER(PARTITION BY Cluster ORDER BY Rn), 
+            EndOfDayRate = FIRST_VALUE(EndOfDayRate) OVER(
+                PARTITION BY Cluster 
+                ORDER BY Rn
+            ), 
             Date 
         FROM B
     )

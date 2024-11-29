@@ -93,23 +93,24 @@ FROM CurrencyRate
 
 ## Solution
 
-1. **Solution 1**
+1. **Solution 1**: This solution groups the table into rows that have the LowerBound and UpperBound columns through which the original table can then be merged if the target column's values fall between the LB and UB, here LowerBound and UpperBound are Rn and NextRn respectively.
 
     ```sql
     ;WITH A AS (
         SELECT 
             *, 
             Rn = ROW_NUMBER() OVER(ORDER BY (SELECT NULL)) 
+            -- ^ Generates Arbitrary Index column
         FROM CurrencyRate
     ),
     B AS (
         SELECT 
             *, 
             NextRn = LEAD(Rn, 1, 999999999) OVER(ORDER BY Rn) 
+            -- ^ Gets the RowNumber from the immediate next row to create UpperBound
         FROM A
         WHERE NOT EndOfDayRate IS NULL
     )
-
 
     SELECT 
         A.CurrencyKey, 
@@ -121,7 +122,7 @@ FROM CurrencyRate
                     AND A.Rn < B.NextRn
     ```
 
-2. **Solution 2**
+2. **Solution 2**: This solution uses Subquery and generates a Running Count of EndOfDayRate column rows with NULL get the number of the last non null cell which then we consider as a cluster/bin and they later use it to partition the table so that we can get the first value in that cluster/partition.
 
     ```sql
     SELECT 
@@ -139,12 +140,13 @@ FROM CurrencyRate
                 ORDER BY DateKey 
                 ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
             ) 
+            -- ^ Does a RunningCount of EndOfDayRate
         FROM CurrencyRate
     ) AS T
     ```
 
 
-3. **Solution 3**
+3. **Solution 3**: This soution is just like Solution 2 but with 1 additional step.
     ```sql
     ;WITH A AS (
         SELECT 
@@ -156,6 +158,7 @@ FROM CurrencyRate
         SELECT 
             *, 
             Cluster = COUNT(EndOfDayRate) OVER(ORDER BY Rn) 
+            -- ^ Running Count
         FROM A
     ),
     C AS (
